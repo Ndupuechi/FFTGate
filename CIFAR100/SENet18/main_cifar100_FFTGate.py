@@ -1,0 +1,1064 @@
+
+
+
+
+# %% Imports and Setup
+
+
+########################################################################################################################
+####-------| NOTE 1.A. IMPORTS LIBRARIES | XXX -----------------------------------------------------####################
+########################################################################################################################
+
+
+"""Train CIFAR100 with PyTorch."""
+
+# Python 2/3 compatibility
+# from __future__ import print_function
+
+
+# ✅ Standard libraries
+import sys
+import os
+import argparse
+from tqdm import tqdm
+import math
+import random
+import numpy as np
+
+# PyTorch and related modules
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+import torch.backends.cudnn as cudnn
+
+# torchvision for datasets and transforms
+import torchvision
+import torchvision.transforms as transforms
+import torch_optimizer as torch_opt  # Use 'torch_opt' for torch_optimizer
+from timm.scheduler import CosineLRScheduler 
+from torch.optim.lr_scheduler import OneCycleLR
+
+
+
+
+# ✅ Define currect working directory to ensure on right directory
+SENet18_PATH = r"C:\Users\emeka\Research\ModelCUDA\Big_Data_Journal\Comparison\Code\Paper\github2\CIFAR100\SENet18"
+if os.getcwd() != SENet18_PATH:
+    os.chdir(SENet18_PATH)
+print(f"✅ Current working directory: {os.getcwd()}")
+
+# ✅ Define absolute paths
+PROJECT_PATH = SENet18_PATH
+MODELS_PATH = os.path.join(SENet18_PATH, "models")
+ACTIVATION_PATH = os.path.join(SENet18_PATH, "activation")
+# PAU_PATH = os.path.join(SENet18_PATH, "pau")
+
+# ✅ Ensure necessary paths are in sys.path
+for path in [PROJECT_PATH, MODELS_PATH, ACTIVATION_PATH]:
+    if path not in sys.path:
+        sys.path.append(path)
+
+# ✅ Print updated sys.path for debugging
+print("✅ sys.path updated:")
+for path in sys.path:
+    print("   📂", path)
+
+# ✅ Import FFTGate (Check if the module exists)
+try:
+    from activation.FFTGate import FFTGate  # type: ignore
+    print("✅ FFTGate imported successfully!")
+except ModuleNotFoundError as e:
+    print(f"❌ Import failed: {e}")
+    print(f"🔍 Check that 'FFTGate.py' exists inside: {ACTIVATION_PATH}")
+
+# ✅ Test if FFTGate is callable
+try:
+    activation_test = FFTGate()
+    print("✅ FFTGate instance created successfully!")
+except Exception as e:
+    print(f"❌ Error while initializing FFTGate: {e}")
+
+# ✅ Now import FFTGate_SENet (Ensure module exists inside models/)
+try:
+    from models.FFTGate_SENet import FFTGate_SENet  # type: ignore
+    print("✅ FFTGate_SENet imported successfully!")
+except ModuleNotFoundError as e:
+    print(f"❌ FFTGate_SENet import failed: {e}")
+    print(f"🔍 Check that 'FFTGate_SENet.py' exists inside: {MODELS_PATH}")
+
+# from models.FFTGate_SENet import Block  # Import the Block class explicitly!
+from models.FFTGate_SENet import PreActBlock  # Ensure the correct path
+
+
+
+
+
+
+########################################################################################################################
+####-------| NOTE 1.B. SEEDING FOR REPRODUCIBILITY | XXX -------------------------------------------####################
+########################################################################################################################
+
+def set_seed_torch(seed):
+    torch.manual_seed(seed)                          
+
+
+
+def set_seed_main(seed):
+    random.seed(seed)                                ## Python's random module
+    np.random.seed(seed)                             ## NumPy's random module
+    torch.cuda.manual_seed(seed)                     ## PyTorch's random module for CUDA
+    torch.cuda.manual_seed_all(seed)                 ## Seed for all CUDA devices
+    torch.backends.cudnn.deterministic = True        ## Ensure deterministic behavior for CuDNN
+    torch.backends.cudnn.benchmark = False           ## Disable CuDNN's autotuning for reproducibility
+
+
+
+# Variable seed for DataLoader shuffling
+set_seed_torch(0)   
+
+# Fixed main seed (model, CUDA, etc.)
+set_seed_main(0)  
+
+
+
+
+
+# (Optional) Import Optimizers - Uncomment as needed
+# from Opt import opt
+# from diffGrad import diffGrad
+# from diffRGrad import diffRGrad, SdiffRGrad, BetaDiffRGrad, Beta12DiffRGrad, BetaDFCDiffRGrad
+# from RADAM import Radam, BetaRadam
+# from BetaAdam import BetaAdam, BetaAdam1, BetaAdam2, BetaAdam3, BetaAdam4, BetaAdam5, BetaAdam6, BetaAdam7, BetaAdam4A
+# from AdamRM import AdamRM, AdamRM1, AdamRM2, AdamRM3, AdamRM4, AdamRM5
+# from sadam import sadam
+# from SdiffGrad import SdiffGrad
+# from SRADAM import SRADAM
+
+
+
+
+
+
+
+
+
+
+########################################################################################################################
+####-------| NOTE 1.D. SEARCH FOR FFTGate LAYERS| XXX ----------------------------------------------####################
+########################################################################################################################
+
+def find_activations(module, activation_layers, activation_params):
+    """Recursively find FFTGate layers and collect them into activation_layers and activation_params."""
+    for layer in module.children():
+        if isinstance(layer, FFTGate):
+            activation_layers.append(layer)  # ✅ Store the entire layer
+            activation_params.append(layer.gamma1)  # ✅ Store only gamma1 for optimization
+        elif isinstance(layer, nn.Sequential) or isinstance(layer, nn.Module):  
+            find_activations(layer, activation_layers, activation_params)  # ✅ Recursively search
+
+
+
+
+
+
+########################################################################################################################
+####-------| NOTE 2. DEFINE MODEL Lr | XXX ---------------------------------------------------------####################
+########################################################################################################################
+
+# Main Execution (Placeholder)
+if __name__ == "__main__":
+    print("CIFAR100 Training Script Initialized...")
+    # Add your training pipeline here
+
+
+import argparse
+import os
+
+# Argument parser to get user inputs
+parser = argparse.ArgumentParser(description='PyTorch CIFAR100 Training')
+parser.add_argument('--lr', default=0.001, type=float, help='learning rate')
+parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
+
+args, unknown = parser.parse_known_args()  # Avoids Jupyter argument issues
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+# Ensure lr is correctly parsed
+lr = args.lr  # Get learning rate from argparse
+lr_str = str(lr).replace('.', '_')  # Convert to string and replace '.' for filenames
+
+# Debugging prints
+print(f"Using device: {device}")
+print(f"Parsed learning rate: {lr} (type: {type(lr)})")
+print(f"Formatted learning rate for filenames: {lr_str}")
+
+# Initialize training variables
+best_acc = 0  # Best test accuracy
+start_epoch = 0  # Start from epoch 0 or last checkpoint epoch
+
+
+
+
+########################################################################################################################
+####-------| NOTE 3. LOAD DATASET | XXX ------------------------------------------------------------####################
+########################################################################################################################
+
+# Data
+print('==> Preparing data..')
+transform_train = transforms.Compose([
+    transforms.RandomCrop(32, padding=4),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+])
+transform_test = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+])
+
+bs = 64 #set batch size
+trainset = torchvision.datasets.CIFAR100(root='./data', train=True, download=True, transform=transform_train)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=bs, shuffle=True, num_workers=0)
+testset = torchvision.datasets.CIFAR100(root='./data', train=False, download=True, transform=transform_test)
+testloader = torch.utils.data.DataLoader(testset, batch_size=bs, shuffle=False, num_workers=0)
+#classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+
+
+
+
+
+# ✅ Length of train and test datasets
+len_train = len(trainset)
+len_test = len(testset)
+print(f"Length of training dataset: {len_train}")
+print(f"Length of testing dataset: {len_test}")
+
+# ✅ Print number of classes
+num_classes = len(trainset.classes)
+print(f"Number of classes in CIFAR-100: {num_classes}")
+
+
+
+
+
+########################################################################################################################
+####-------| NOTE 4. DYNAMIC REGULARIZATION| XXX ---------------------------------------------------####################
+########################################################################################################################
+
+
+def apply_dynamic_regularization(inputs, feature_activations, epoch,
+                                  prev_params, layer_index_map, batch_idx):
+
+
+    global activation_layers  # ✅ MUST be declared first, before using activation_layers | # Uses collected layers
+
+    if batch_idx == 0 and epoch <= 4:
+        print(f"\n🚨 ENTERED apply_dynamic_regularization | Epoch={epoch} | Batch={batch_idx}", flush=True)
+
+        # 🧠 Print all gamma1 stats in one line (once per batch)
+        all_layer_info = []
+        for idx, layer in enumerate(activation_layers):
+            param = getattr(layer, "gamma1")
+            all_layer_info.append(f"Layer {idx}: ID={id(param)} | Mean={param.mean().item():.5f}")
+        print("🧠 GAMMA1 INFO:", " | ".join(all_layer_info), flush=True)
+
+    # ✅ Initialize gamma1 regularization accumulator
+    gamma1_reg = 0.0
+
+    # ✅ Compute batch std and define regularization strength
+    batch_std = torch.std(inputs) + 1e-6
+    regularization_strength = 0.05 if epoch < 40 else (0.01 if epoch < 60 else 0.005)
+
+
+    # ✅ Track layers where noise is injected (informative)
+    noisy_layers = []
+    for idx, layer in enumerate(activation_layers):
+        if idx not in layer_index_map:
+            continue
+
+        prev_layer_params = prev_params[layer_index_map[idx]]
+        param_name = "gamma1"  # ✅ Only gamma1 is trainable
+        param = getattr(layer, param_name)
+        prev_param = prev_layer_params[param_name]
+
+
+        # ✅ Target based on input stats
+        target = compute_target(param_name, batch_std)
+
+        # ✅ Adaptive Target Regularization
+        gamma1_reg += regularization_strength * (param - target).pow(2).mean() * 1.2
+
+        # ✅ Adaptive Cohesion Regularization 
+        cohesion = (param - prev_param).pow(2)  
+        gamma1_reg += 0.005 * cohesion.mean()  
+
+
+        # ✅ Adaptive Noise Regularization
+        epoch_AddNoise = 50
+        if epoch > epoch_AddNoise:
+            param_variation = torch.abs(param - prev_param).mean()
+            if param_variation < 0.015:  
+                noise = (0.001 + 0.0004 * batch_std.item()) * torch.randn_like(param)
+                penalty = (param - (prev_param + noise)).pow(2).sum()
+                gamma1_reg += 0.00015 * penalty                  
+                noisy_layers.append(f"{idx} (Δ={param_variation.item():.5f})") # Collect index and variation
+
+    # ✅ Print noise summary for first few epochs
+    if batch_idx == 0 and epoch <= (epoch_AddNoise+4) and noisy_layers:
+        print(f"🔥 Stable Noise Injected | Epoch {epoch} | Batch {batch_idx} | Layers: " + ", ".join(noisy_layers), flush=True)
+    mags = feature_activations.abs().mean(dim=(0, 2, 3))
+    m = mags / mags.sum()
+    gamma1_reg += 0.005 * (-(m * torch.log(m + 1e-6)).sum())
+
+    return gamma1_reg
+
+
+def compute_target(param_name, batch_std):
+    if param_name == "gamma1":
+        return 2.0 + 0.2 * batch_std.item()    
+    
+    raise ValueError(f"Unknown param {param_name}")
+
+
+
+
+
+########################################################################################################################
+####-------| NOTE 5. INITIALIZE MODEL | XXX --------------------------------------------------------####################
+########################################################################################################################
+
+
+# Model
+print('==> Building model..')
+#net = Elliott_VGG('VGG16'); net1 = 'Elliott_VGG16'
+#net = GELU_MobileNet(); net1 = 'GELU_MobileNet'
+#net = GELU_SENet18(); net1 = 'GELU_SENet18'
+#net = PDELU_ResNet50(); net1 = 'PDELU_ResNet50'
+# net = Sigmoid_GoogLeNet(); net1 = 'Sigmoid_GoogLeNet'
+#net = GELU_DenseNet121(); net1 = 'GELU_DenseNet121'
+# net = ReLU_VGG('VGG16'); net1 = 'ReLU_VGG16'
+# net = MY_VGG4('VGG16'); net1 = 'MY_VGG16'
+# net = MY_MobileNet4(num_classes=10); net1 = 'MY_MobileNet4'
+# net = MY_SENet4(num_classes=10); net1 = 'MY_SENet4'
+net = FFTGate_SENet(PreActBlock, [2, 2, 2, 2], num_classes=100); net1 = 'FFTGate_SENet'
+
+
+
+net = net.to(device)
+if device == 'cuda':
+    net = torch.nn.DataParallel(net)
+    cudnn.benchmark = True
+
+criterion = nn.CrossEntropyLoss()
+#optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9); optimizer1 = 'SGDM5'
+#optimizer = optim.Adagrad(net.parameters()); optimizer1 = 'AdaGrad'
+#optimizer = optim.Adadelta(net.parameters()); optimizer1 = 'AdaDelta'
+#optimizer = optim.RMSprop(net.parameters()); optimizer1 = 'RMSprop'
+optimizer = optim.Adam(net.parameters(), lr=args.lr); optimizer1 = 'Adam'
+#optimizer = optim.Adam(net.parameters(), lr=args.lr, amsgrad=True); optimizer1 = 'amsgrad'
+#optimizer = diffGrad(net.parameters(), lr=args.lr); optimizer1 = 'diffGrad'
+#optimizer = Radam(net.parameters(), lr=args.lr); optimizer1 = 'Radam'
+
+
+
+
+
+########################################################################################################################
+####-------| NOTE 6. INITIALIZE ACTIVATION PARAMETERS, OPTIMIZERS & SCHEDULERS | XXX ---------------####################
+########################################################################################################################
+
+import torch
+from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
+
+
+# ✅ Step 1: Collect Activation Parameters from ALL Layers (Ensure Compatibility with DataParallel)
+if isinstance(net, torch.nn.DataParallel):
+    model_layers = [
+        net.module.conv1, net.module.bn1, 
+        *net.module.layer1, *net.module.layer2, 
+        *net.module.layer3, *net.module.layer4
+    ]
+else:
+    model_layers = [
+        net.conv1, net.bn1, 
+        *net.layer1, *net.layer2, 
+        *net.layer3, *net.layer4
+    ]
+
+
+# ✅ Step 2: Recursively search for FFTGate layers
+activation_params = []
+activation_layers = []  # ✅ Define an empty list to store FFTGate layers
+
+
+# 🔍 Correctly populate activation_layers and activation_params
+for layer in model_layers:
+    find_activations(layer, activation_layers, activation_params)
+
+
+# ✅ Step 3: Print collected activation layers and parameters
+if activation_layers and activation_params:
+    print(f"✅ Found {len(activation_layers)} FFTGate layers.")
+    print(f"✅ Collected {len(activation_params)} trainable activation parameters.")
+    
+    for idx, layer in enumerate(activation_layers):
+        print(f"   🔹 Layer {idx}: {layer}")
+
+elif activation_layers and not activation_params:
+    print(f"⚠ Warning: Found {len(activation_layers)} FFTGate layers, but no trainable parameters were collected.")
+
+elif activation_params and not activation_layers:
+    print(f"⚠ Warning: Collected {len(activation_params)} activation parameters, but no FFTGate layers were recorded.")
+
+else:
+    print("⚠ Warning: No FFTGate layers or activation parameters found! Skipping activation optimizer.")
+    activation_optimizers = None  # Prevents crash
+
+
+
+# ✅ Step 4: Define Unfreeze Epoch
+unfreeze_activation_epoch = 1  # ✅ Change this value if needed changed from 1 to 0 temporary
+# unfreeze_activation_epoch = 10  # ✅ Delay unfreezing until epoch 10
+
+
+# ✅Step 5: Define the warm-up epoch value
+# WARMUP_ACTIVATION_EPOCHS = 5  # The number of epochs for warm-up
+WARMUP_ACTIVATION_EPOCHS = 0  # The number of epochs for warm-up
+
+
+# ✅ Step 6: Initially Freeze Activation Parameters
+for param in activation_params:
+    param.requires_grad = False  # 🚫 Keep frozen before the unfreeze epoch
+
+
+# ✅ Step 7: Initialize Activation Optimizers (Using AdamW for Better Weight Decay)
+activation_optimizers = {
+    "gamma1": torch.optim.AdamW(activation_params, lr=0.0015, weight_decay=1e-6)
+}
+
+
+
+
+# ✅ Step 8: Initialize Activation Schedulers with Warm Restarts (Per Parameter Type)
+activation_schedulers = {
+    "gamma1": CosineAnnealingWarmRestarts(
+        activation_optimizers["gamma1"],
+        T_0=10,
+        T_mult=2,
+        eta_min=1e-5  # ✅ recommended safer modification
+    )
+}
+
+
+
+
+
+
+
+########################################################################################################################
+####-------| NOTE 7. INITIALIZE MAIN OPTIMIZER SCHEDULER | XXX -------------------------------------####################
+########################################################################################################################
+
+# ✅ Step 6: Define MultiStepLR for Main Optimizer
+# scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[80], gamma=0.1, last_epoch=-1)
+
+main_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[80], gamma=0.1, last_epoch=-1)
+
+
+
+
+
+
+########################################################################################################################
+####-------| NOTE 8. MODEL CHECK POINT | XXX -------------------------------------------------------####################
+########################################################################################################################
+
+import os
+import torch
+
+# Ensure directories exist
+if not os.path.exists('checkpoint'):
+    os.makedirs('checkpoint')
+
+if not os.path.exists('Results'):
+    os.makedirs('Results')
+
+# Construct checkpoint path
+checkpoint_path = f'./checkpoint/CIFAR10_B{bs}_LR{lr}_{net1}_{optimizer1}.t7'
+
+# Resume checkpoint only if file exists
+if args.resume:
+    print('==> Resuming from checkpoint..')
+    
+    if os.path.exists(checkpoint_path):
+        checkpoint = torch.load(checkpoint_path)
+        net.load_state_dict(checkpoint['net'])
+        best_acc = checkpoint['acc']
+        start_epoch = checkpoint['epoch']
+        print(f"Checkpoint loaded: {checkpoint_path}")
+    else:
+        print(f"Error: Checkpoint file not found: {checkpoint_path}")
+
+
+
+
+
+########################################################################################################################
+####-------| NOTE 9. DEFINE TRAIN LOOP | XXX -------------------------------------------------------####################
+########################################################################################################################
+
+# Training
+
+def train(epoch, optimizer, activation_optimizers, activation_schedulers, unfreeze_activation_epoch, main_scheduler , WARMUP_ACTIVATION_EPOCHS):
+    global train_loss_history, best_train_acc, prev_params, recent_test_acc, gamma1_history, activation_layers, test_acc_history  # 🟢🟢🟢
+
+    if epoch == 0:
+        train_loss_history = []
+        best_train_acc = 0.0
+        recent_test_acc = 0.0
+        gamma1_history = {}        # ✅ Initialize history 
+        test_acc_history = []      # ✅ test accuracy history
+
+
+    prev_params = {}
+    layer_index_map = {idx: idx for idx in range(len(activation_layers))}
+
+    # ✅ Cache previous gamma1 values
+    for idx, layer in enumerate(activation_layers):
+        prev_params[idx] = {"gamma1": layer.gamma1.clone().detach()}
+
+
+
+
+    net.train()
+    train_loss = 0
+    correct = 0
+    total = 0
+    train_accuracy = 0.0
+
+    # ✅ Initialize log history
+    log_history = []
+
+    # ✅ Define path to store Training log
+    save_paths = {
+       
+        "log_history": f"C:\\Users\\emeka\\Research\\ModelCUDA\\Big_Data_Journal\\Comparison\\Code\\Paper\\github2\\CIFAR100\\SENet18\\Results\\FFTGate\\FFTGate_training_logs.txt"  # ✅ Training log_history 
+    }
+
+
+
+
+
+    # ✅ Step 1: Unfreeze Activation Parameters (Only Once Per Epoch)
+    if epoch == unfreeze_activation_epoch:
+        print("\n🔓 Unfreezing Activation Function Parameters 🔓")
+        for layer in activation_layers:  
+            layer.gamma1.requires_grad = True  # ✅ Only gamma1 is trainable
+        print("✅ Activation Parameters Unfrozen! 🚀")
+
+
+
+
+
+    # ✅ Step 2: Gradual Warm-up for Activation Learning Rates (AFTER Unfreezing)
+    warmup_start = unfreeze_activation_epoch  # 🔹 Start warm-up when unfreezing happens
+    warmup_end = unfreeze_activation_epoch + WARMUP_ACTIVATION_EPOCHS  # 🔹 End warm-up period
+
+    # ✅ Adjust learning rates **only** during the warm-up phase
+    if warmup_start <= epoch < warmup_end:
+        warmup_factor = (epoch - warmup_start + 1) / WARMUP_ACTIVATION_EPOCHS  
+
+        for name, act_scheduler in activation_schedulers.items():
+            for param_group in act_scheduler.optimizer.param_groups:
+                if "initial_lr" not in param_group:
+                    param_group["initial_lr"] = param_group["lr"]  # 🔹 Store initial LR
+                param_group["lr"] = param_group["initial_lr"] * warmup_factor  # 🔹 Scale LR
+
+        # ✅ Debugging output to track warm-up process
+        print(f"🔥 Warm-up Epoch {epoch}: Scaling LR by {warmup_factor:.3f}")
+        for name, act_scheduler in activation_schedulers.items():
+            print(f"  🔹 {name} LR: {act_scheduler.optimizer.param_groups[0]['lr']:.6f}")
+
+
+
+
+
+
+
+
+    activation_history = []  # 🔴 Initialize empty history at start of epoch (outside batch loop)
+
+
+
+    # ✅ Training Loop
+    with tqdm(enumerate(trainloader), total=len(trainloader), desc=f"Epoch {epoch}") as progress:
+        for batch_idx, (inputs, targets) in progress:
+            inputs, targets = inputs.to(device), targets.to(device)
+
+            optimizer.zero_grad()
+
+            # zero_grad activation parameter
+            for opt in activation_optimizers.values():
+                opt.zero_grad()
+
+
+            # ✅ Forward Pass
+            # outputs = net(inputs, epoch=epoch, train_accuracy=train_accuracy, targets=targets)
+            outputs = net(inputs, epoch=epoch)  
+            loss = criterion(outputs, targets)
+
+
+            # Feature Extraction | Collect feature activations directly from the network
+            x = inputs.to(device)
+            x = net.module.conv1(x) if isinstance(net, torch.nn.DataParallel) else net.conv1(x)
+            x = net.module.bn1(x) if isinstance(net, torch.nn.DataParallel) else net.bn1(x)
+            x = net.module.activation(x, epoch=epoch) if isinstance(net, torch.nn.DataParallel) else net.activation(x, epoch=epoch)
+
+
+            features = (
+                [net.module.layer1, net.module.layer2, net.module.layer3, net.module.layer4]
+                if isinstance(net, torch.nn.DataParallel)
+                else [net.layer1, net.layer2, net.layer3, net.layer4]
+            )
+            for group in features:
+                for block in group:
+                    x = block(x, epoch=epoch) if isinstance(block, PreActBlock) else block(x)
+
+
+            feature_activations = x  # Ensures gradients flow properly
+
+            # ✅ Collect Activation History | ✅ Per-layer mean activations
+            batch_means = [layer.saved_output.mean().item() for layer in activation_layers]
+            activation_history.extend(batch_means)  
+
+
+
+            # ✅ Apply Decay strategy to history for each activation layer
+            with torch.no_grad():
+                for layer in activation_layers:
+                    if isinstance(layer, FFTGate):
+                        layer.decay_spectral_history(epoch, num_epochs)
+
+
+
+
+            # ✅ Compute Training Accuracy
+            _, predicted = outputs.max(1)
+            total += targets.size(0)
+            correct += predicted.eq(targets).sum().item()
+            train_accuracy = 100. * correct / total if total > 0 else 0.0  # Compute training accuracy
+
+
+
+
+
+            # ✅ Call Regularization Function for the Activation Parameter
+            if epoch > 0:
+                gamma1_reg = apply_dynamic_regularization(
+                    inputs, feature_activations, epoch,
+                    prev_params, layer_index_map, batch_idx
+                )
+                loss += gamma1_reg
+
+
+
+
+
+            # ✅ Backward pass
+            loss.backward()
+
+       
+
+            # ✅ 🎯 Adaptive Gradient Clipping of gamma1 
+            for layer in activation_layers:
+                torch.nn.utils.clip_grad_norm_([layer.gamma1], max_norm=0.7) 
+
+
+
+
+            # ✅ Apply Optimizer Step for Model Parameters
+            optimizer.step()
+
+            # ✅ Apply Optimizer Steps for Activation Parameters (Only if Unfrozen)
+            if epoch >= unfreeze_activation_epoch:
+                for opt in activation_optimizers.values():
+                    opt.step()
+
+
+
+            # ✅ Accumulate loss
+            train_loss += loss.item()
+
+
+
+            # ✅ Clamping of gamma1 (Applied AFTER Optimizer Step)
+            with torch.no_grad():
+                for layer in activation_layers:
+                    layer.gamma1.clamp_(0.1, 6.0)  
+
+
+
+
+            # ✅ Update progress bar
+            progress.set_postfix(Train_loss=round(train_loss / (batch_idx + 1), 3),
+                                 Train_acc=train_accuracy)  
+
+
+
+
+    # ✅ Step the main optimizer scheduler (ONLY for model parameters)
+    main_scheduler.step()
+
+    # ✅ Step the activation parameter schedulers (ONLY for activation parameters) | Epoch-wise stepping
+    if epoch >= unfreeze_activation_epoch:
+        for name, act_scheduler in activation_schedulers.items():  
+            act_scheduler.step()  
+
+
+
+
+    # ✅ Ensure Activation Learning Rate doesn't drop too low (Prevent vanishing updates)
+    for opt in activation_optimizers.values():
+        for group in opt.param_groups:
+            group['lr'] = max(group['lr'], 1e-5)
+
+
+
+ 
+
+
+    # ✅ ONLY update prev_params here AFTER all updates | ✅ Update prev_params AFTER training epoch
+    for idx, layer in enumerate(features):
+        if isinstance(layer, FFTGate): 
+            prev_params[idx] = {
+                "gamma1": layer.gamma1.clone().detach()  
+            }
+ 
+
+
+    # ✅ Logging Parameters & Gradients
+    last_batch_grads = {"Gamma1 Grad": []}
+    current_params = {"Gamma1": []}
+
+    # ✅ Iterate over the previously collected activation layers
+    for idx, layer in enumerate(activation_layers):  # Use activation_layers instead of features
+        if layer.gamma1.grad is not None:
+            grad_value = f"{layer.gamma1.grad.item():.5f}"
+        else:
+            grad_value = "None"
+
+        param_value = f"{layer.gamma1.item():.5f}"
+
+        last_batch_grads["Gamma1 Grad"].append(grad_value)
+        current_params["Gamma1"].append(param_value)
+
+    # ✅ Build log message (showing params and gradients for ALL layers, cleaned and rounded)
+    log_msg = (
+        f"Epoch {epoch}: M_Optimizer LR => {optimizer.param_groups[0]['lr']:.5f} | "
+        f"Gamma1 LR => {activation_optimizers['gamma1'].param_groups[0]['lr']:.5f} | "
+        f"Gamma1: {current_params['Gamma1']} | "
+        f"Gamma1 Grad: {last_batch_grads['Gamma1 Grad']}"
+    )
+
+    log_history.append(log_msg)
+    print(log_msg)  # ✅ Prints only once per epoch
+
+
+
+
+    # ✅ Initialize log file at the beginning of training (Clear old logs)
+    if epoch == 0:  # ✅ Only clear at the start of training
+        with open(save_paths["log_history"], "w", encoding="utf-8") as log_file:
+            log_file.write("")  # ✅ Clears previous logs
+
+    # ✅ Save logs once per epoch (Append new logs)
+    if log_history:
+        with open(save_paths["log_history"], "a", encoding="utf-8") as log_file:
+            log_file.write("\n".join(log_history) + "\n")         # ✅ Ensure each entry is on a new line
+        print(f"📜 Logs saved to {save_paths['log_history']}!")  # ✅ Only prints once per epoch
+    else:
+        print("⚠ No logs to save!")
+
+
+
+
+    # ✅ Compute final training accuracy for the epoch
+    final_train_loss = train_loss / len(trainloader)
+    final_train_acc = 100. * correct / total
+
+    # Append to history
+    train_loss_history.append(final_train_loss)
+    test_acc_history.append(final_train_acc)  # Track test/train accuracy across epochs
+
+
+
+
+
+
+    # ✅ Save training results (without affecting best accuracy tracking)
+    train_results_path = f'./Results/CIFAR100_Train_B{bs}_LR{lr}_{net1}_{optimizer1}.txt'
+
+    # ✅ Clear the log file at the start of training (Epoch 0)
+    if epoch == 0 and os.path.exists(train_results_path):
+        with open(train_results_path, 'w') as f:
+            f.write("")  # ✅ Clears previous logs only once
+
+    # ✅ Append new training results for each epoch
+    with open(train_results_path, 'a') as f:
+        f.write(f"Epoch {epoch} | Train Loss: {final_train_loss:.3f} | Train Acc: {final_train_acc:.3f}%\n")
+
+    if final_train_acc > best_train_acc:
+        best_train_acc = final_train_acc  # ✅ Update best training accuracy
+        print(f"🏆 New Best Training Accuracy: {best_train_acc:.3f}% (Updated)")
+
+    # ✅ Append the best training accuracy **only once at the end of training**
+    if epoch == (num_epochs - 1):  # Only log once at the final epoch
+        with open(train_results_path, 'a') as f:
+            f.write(f"\n🏆 Best Training Accuracy: {best_train_acc:.3f}%\n")  
+
+    # ✅ Print both Final and Best Training Accuracy
+    print(f"📊 Train Accuracy: {final_train_acc:.3f}% | 🏆 Best Train Accuracy: {best_train_acc:.3f}%")
+
+
+
+
+    print(f"📜 Training logs saved to {train_results_path}!")
+    print(f"🏆 Best Training Accuracy: {best_train_acc:.3f}% (Updated)")
+
+
+    if epoch % 10 == 0:
+        print(f"📏 Sizes → ActivationHist: {len(activation_history)} | TestAccHist: {len(test_acc_history)} | TrainLossHist: {len(train_loss_history)}")
+
+
+
+
+
+    # return final_train_loss, final_train_acc, feature_activations
+
+
+
+
+
+
+
+########################################################################################################################
+####-------| NOTE 10. DEFINE TEST LOOP | XXX -------------------------------------------------------####################
+########################################################################################################################
+
+
+
+import os
+import torch
+from tqdm import tqdm
+
+def test(epoch, save_results=True):
+    """
+    Evaluates the model on the test set and optionally saves the results.
+    
+    Args:
+    - epoch (int): The current epoch number.
+    - save_results (bool): Whether to save results to a file.
+
+    Returns:
+    - acc (float): Test accuracy percentage.
+    """
+    global best_acc, val_accuracy 
+    net.eval()
+    test_loss = 0
+    correct = 0
+    total = 0
+
+    # ✅ Ensure activation function parameters are clamped before evaluation
+    with torch.no_grad():
+        with tqdm(enumerate(testloader), total=len(testloader), desc=f"Testing Epoch {epoch}") as progress:
+            for batch_idx, (inputs, targets) in progress:
+                inputs, targets = inputs.to(device), targets.to(device)
+                outputs = net(inputs)
+                # outputs = net(inputs, epoch=0)  # Pass epoch=0 to fix TypeError!
+                loss = criterion(outputs, targets)
+
+                test_loss += loss.item()
+                _, predicted = outputs.max(1)
+                total += targets.size(0)
+                correct += predicted.eq(targets).sum().item()
+
+                # ✅ Pass validation accuracy to activation function
+                val_accuracy = 100. * correct / total if total > 0 else 0
+
+
+                # ✅ Update progress bar with loss & accuracy
+                progress.set_postfix(Test_loss=round(test_loss / (batch_idx + 1), 3),
+                                     Test_acc=round(val_accuracy, 3))
+
+
+
+    # ✅ Compute final test accuracy
+    final_test_loss = test_loss / len(testloader)
+    final_test_acc = 100. * correct / total
+
+
+
+
+
+
+    # ✅ Ensure "Results" folder exists (just like training logs)
+    results_dir = os.path.join(PROJECT_PATH, "Results")
+    os.makedirs(results_dir, exist_ok=True)
+
+    # ✅ Define log file path for test results
+    test_results_path = os.path.join(results_dir, f'CIFAR100_Test_B{bs}_LR{lr}_{net1}_{optimizer1}.txt')
+
+    # ✅ Initialize log file at the beginning of training (clear old logs)
+    if epoch == 0:
+        with open(test_results_path, 'w', encoding="utf-8") as f:
+            f.write("")  # ✅ Clears previous logs
+
+    # ✅ Append new test results for each epoch (same style as training)
+    with open(test_results_path, 'a', encoding="utf-8") as f:
+        f.write(f"Epoch {epoch} | Test Loss: {final_test_loss:.3f} | Test Acc: {final_test_acc:.3f}%\n")
+
+
+
+
+
+
+
+    # ✅ Save checkpoint if accuracy improves (does NOT interfere with logging)
+    if final_test_acc > best_acc:
+        print('🏆 Saving best model...')
+        state = {
+            'net': net.state_dict(),
+            'acc': final_test_acc,  # ✅ Ensures the best test accuracy is saved in checkpoint
+            'epoch': epoch,
+        }
+
+
+
+
+        # Ensure checkpoint directory exists
+        checkpoint_dir = "checkpoint"
+        if not os.path.exists(checkpoint_dir):
+            os.makedirs(checkpoint_dir)
+
+
+        # ✅ Format learning rate properly before saving filename
+        lr_str = str(lr).replace('.', '_')
+        checkpoint_path = f'./checkpoint/CIFAR100_B{bs}_LR{lr_str}_{net1}_{optimizer1}.t7'
+        torch.save(state, checkpoint_path)
+        print(f"Checkpoint saved: {checkpoint_path}")
+
+
+        best_acc = final_test_acc  # ✅ Update best accuracy
+
+
+
+
+    # ✅ Append the best test accuracy **only once at the end of training**
+    if epoch == (num_epochs - 1):
+        with open(test_results_path, 'a', encoding="utf-8") as f:
+            f.write(f"\n🏆 Best Test Accuracy: {best_acc:.3f}%\n")
+
+
+
+    # ✅ Print both Final and Best Test Accuracy (always executed)
+    print(f"📊 Test Accuracy: {final_test_acc:.3f}% | 🏆 Best Test Accuracy: {best_acc:.3f}%")
+    print(f"📜 Test logs saved to {test_results_path}!")
+
+
+    global recent_test_acc
+    recent_test_acc = final_test_acc  # Capture latest test accuracy for next train() call | Store latest test accuracy
+
+    return final_test_acc  # ✅ Return the test accuracy
+
+
+
+# %% 
+
+########################################################################################################################
+####-------| NOTE 11. TRAIN MODEL WITH SHEDULAR | XXX ----------------------------------------------####################
+########################################################################################################################
+
+
+
+# ✅ Set Seed for Reproducibility BEFORE training starts
+
+# Variable seed for DataLoader shuffling
+set_seed_torch(0)
+
+# Variable main seed (model, CUDA, etc.)
+set_seed_main(0)  
+
+
+
+# ✅ Training Loop
+num_epochs = 100 # Example: Set the total number of epochs
+for epoch in range(start_epoch, num_epochs):   # Runs training for 100 epochs
+
+    train(epoch, optimizer, activation_optimizers, activation_schedulers, unfreeze_activation_epoch, main_scheduler, WARMUP_ACTIVATION_EPOCHS) # ✅ Pass required arguments
+
+    test(epoch)  # ✅ Test the model
+    tqdm.write("")  # ✅ Clear leftover progress bar from test()
+
+
+
+print("Best Test Accuracy: ", best_acc)
+
+
+
+
+
+
+# %%
+########################################################################################################################
+####-------| NOTE 12. LOAD AND TEST MODEL ACCURACY | XXX -------------------------------------------####################
+########################################################################################################################
+
+# checkpoint_path = './checkpoint/CIFAR100_B64_LR0_001_MY_SENet4_Adam.t7'
+checkpoint_path = f'./checkpoint/CIFAR10_B{bs}_LR{lr}_{net1}_{optimizer1}.t7'
+
+# 🔹 Load Checkpoint
+checkpoint = torch.load(checkpoint_path)
+
+# 🔹 Restore Model Weights
+net.load_state_dict(checkpoint['net'])  
+best_acc = checkpoint['acc']  
+start_epoch = checkpoint['epoch']  
+
+print("\n✅ Checkpoint successfully loaded!")
+print(f"🔹 Best Accuracy (Saved in Checkpoint): {best_acc:.3f}%")
+print(f"🔹 Last Training Epoch: {start_epoch}")
+
+# 🔹 Restore Optimizers & Schedulers
+if 'optimizer' in checkpoint:
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    print("🔹 Main Optimizer state restored!")
+
+if 'scheduler' in checkpoint:
+    main_scheduler.load_state_dict(checkpoint['scheduler'])
+    print("🔹 Main Scheduler state restored!")
+
+if 'activation_optimizer' in checkpoint:
+    activation_optimizers["gamma1"].load_state_dict(checkpoint['activation_optimizer'])
+    print("🔹 Activation Optimizer restored!")
+
+if 'activation_scheduler' in checkpoint:
+    activation_schedulers["gamma1"].load_state_dict(checkpoint['activation_scheduler'])
+    print("🔹 Activation Scheduler restored!")
+
+# 🔹 Run Test After Checkpoint Load
+test_accuracy = test(0)  # Call test function with epoch=0
+
+# ✅ Compare Results for Debugging
+print("\n🎯 **Checkpoint Test Run Completed**")
+print(f"🔹 Test Accuracy from `test(0)`: {test_accuracy:.3f}%")
+print(f"🔹 **Best Accuracy Saved in Checkpoint**: {best_acc:.3f}%")
+
+# ⚠ Check for Mismatch in Accuracy
+if abs(test_accuracy - best_acc) > 0.01:  # Small tolerance for floating point errors
+    print(f"⚠ WARNING: Test accuracy mismatch! (Saved: {best_acc:.3f}%, Current Run: {test_accuracy:.3f}%)")
+else:
+    print("✅ No mismatch detected. Checkpoint and test accuracy match!")
+
+
+# %%    
+
