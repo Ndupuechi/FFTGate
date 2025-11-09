@@ -1,0 +1,6 @@
+============ ConvNeXt-V1-A | GELU | Resolution → 128x128 =============
+GPU: NVIDIA GeForce RTX 4080 SUPER (17.17 GB)
+PyTorch: 2.2.0+cu121 | CUDA: 12.1 | cuDNN: 8801
+Python: 3.10.16 | OS: Windows 10
+
+ConvNeXt-V1-A | GELU | Top-1: — | Params: 3.70 | FLOPs: 0.18 | Thru (bs=32): 8338.4 | Lat (bs=1): 4.02 | Peak Mem (GB, inf., bs=32): 0.08 | Peak Mem (GB, inf., bs=1): 0.05

@@ -1,0 +1,3 @@
+0 -- 🔕 Mixup/CutMix disabled after epoch
+
+🕒 Total Training Time => RELU_ConvNeXtV1_ATTO: 675 min 16.53 sec

@@ -1,0 +1,3 @@
+0 -- 🔕 Mixup/CutMix disabled after epoch
+
+🕒 Total Training Time => GEGLU_ConvNeXtV1_ATTO: 814 min 14.10 sec

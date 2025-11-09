@@ -1,0 +1,6 @@
+============ ConvNeXt-V1-A | FFTGate | Resolution → 32x32 ============
+GPU: NVIDIA GeForce RTX 4080 SUPER (17.17 GB)
+PyTorch: 2.2.0+cu121 | CUDA: 12.1 | cuDNN: 8801
+Python: 3.10.16 | OS: Windows 10
+
+ConvNeXt-V1-A | FFTGate | Top-1: — | Params (M): 3.69 | FLOPs (G): 0.18 | Thru (bs=32): 3566.9 | Lat (bs=1): 9.82 | Peak Mem (GB, inf., bs=32): 0.25 | Peak Mem (GB, inf., bs=1): 0.09

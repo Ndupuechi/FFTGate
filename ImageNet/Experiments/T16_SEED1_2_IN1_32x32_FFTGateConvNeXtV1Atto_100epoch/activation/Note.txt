@@ -1,0 +1,74 @@
+
+
+"""
+FFTGATE Activation Function
+
+Overview
+--------
+Per-channel gated activation with **frequency-aware modulation** built from a sliding history
+of recent activations. At each forward pass, it blends:
+(1) an FFT magnitude computed from the last `history_len` batches (detached, for stability), and
+(2) a small **differentiable** current-batch spectrum term (for responsiveness).
+This provides a stable yet trainable frequency signal for the gate.
+
+Args
+----
+num_channels : int
+    Number of channels (C). Parameters are learned per-channel.
+gamma1_init : float, default 1.5
+    Initial **effective** γ₁ (mapped from raw logits) in ~[0.10, 13.0]. Scales the pre-activation
+    inside the sigmoid gate; larger values → sharper gating.
+freq_init : float, default 0.3
+    Initial **effective** frequency scale (mapped from raw logits) in ~[0.01, 1.30]. Multiplies the
+    frequency magnitude term in the gate.
+phi : float, default 0.1
+    Frequency of the small sinusoidal regularizer added to the output (registered as a buffer).
+history_len : int, default 16
+    Temporal window length T for the history buffer. The buffer always contains the **most recent T batches**;
+    it persists across epoch boundaries and is updated every batch with the channel-wise mean activations.
+enable_history : bool, default True
+    Enables the temporal history + FFT branch. If False, only the current-batch differentiable term is used.
+use_skip : bool, default True
+    Enables a light residual blend: `0.95 * activation + 0.05 * input`.
+decay_mode : {"exp", "linear"}, default "linear"
+    Temporal decay applied to the stored history each epoch before FFT:
+    - "exp"    → cosine-shaped exponential-like decay.
+    - "linear" → sigmoid-blended multi-phase decay schedule.
+
+Notes
+-----
+- Input shapes: expects (N, C, H, W) or (N, C). If your model runs channels-last (NHWC), wrap this with
+  an adapter that permutes NHWC↔NCHW around the call.
+- Internals: the gate uses `σ(γ₁·x − freq_factor·freq_mag)`. `freq_mag` is a blend
+  of the detached history FFT magnitude and a differentiable current-batch statistic with a small weight (α≈0.10).
+- Numerical stability: mild smoothing and clamping are applied to the frequency magnitude.
+- Returns a tensor with the **same shape** as the input.
+"""
+
+
+
+
+"
+def __init__(
+    self,
+    num_channels,
+    gamma1_init=1.5,
+    freq_init=0.3,
+    phi=0.1,
+    history_len=16,
+    enable_history=True,
+    use_skip=True,
+    decay_mode="linear",
+    fft_stride=4,      # 🟡 How often to recompute the history FFT (in batches).
+                      #     Set fft_stride=1 to recompute EVERY batch (no caching).
+                      #     Use >1 (e.g., 4 or 8) to cache between batches and cut overhead.
+    blend_alpha=0.10,  # 🟡 Weight of the *current-batch* differentiable statistic in the
+                      #     freq magnitude blend. Does NOT affect how often FFT is computed.
+                      #     0.10 = 10% current, 90% cached-history; higher = more responsive,
+                      #     lower = more stable. Set to 0.0 to use only cached history; 1.0 to
+                      #     use only current-batch statistic.
+    clamp_min=0.05,
+    clamp_max=1.50,
+):
+Quick note
+"

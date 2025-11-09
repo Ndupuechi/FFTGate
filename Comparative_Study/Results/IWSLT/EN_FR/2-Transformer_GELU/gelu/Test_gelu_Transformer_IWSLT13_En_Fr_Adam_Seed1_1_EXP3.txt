@@ -1,0 +1,7 @@
+Epoch 49 | Test Loss: 2.747 | sacreBLEU: 36.58 | Beam=5
+
+🏆 Last BLEU Score: 36.58
+
+🕒 Total Test Time => gelu_Transformer: 0 min 34.39 sec
+
+🕒 Total Training Time => gelu_Transformer: 51 min 50.20 sec

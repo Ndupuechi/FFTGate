@@ -1,0 +1,2 @@
+
+🕒 Total Training Time => gelu_VGG16: 1 min 7.97 sec

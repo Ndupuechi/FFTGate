@@ -1,0 +1,7 @@
+Epoch 49 | Test Loss: 2.910 | sacreBLEU: 35.63 | Beam=5
+
+🏆 Last BLEU Score: 35.63
+
+🕒 Total Test Time => tanhexp_Transformer: 0 min 29.32 sec
+
+🕒 Total Training Time => tanhexp_Transformer: 60 min 40.35 sec

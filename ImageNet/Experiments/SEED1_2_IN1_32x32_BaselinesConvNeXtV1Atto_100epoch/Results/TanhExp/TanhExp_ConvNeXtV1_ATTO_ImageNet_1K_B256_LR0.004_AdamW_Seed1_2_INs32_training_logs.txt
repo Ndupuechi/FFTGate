@@ -1,0 +1,3 @@
+0 -- 🔕 Mixup/CutMix disabled after epoch
+
+🕒 Total Training Time => TanhExp_ConvNeXtV1_ATTO: 811 min 13.41 sec

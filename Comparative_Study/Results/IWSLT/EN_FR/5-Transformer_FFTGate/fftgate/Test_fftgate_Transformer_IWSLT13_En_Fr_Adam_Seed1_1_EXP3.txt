@@ -1,0 +1,7 @@
+Epoch 49 | Test Loss: 2.699 | sacreBLEU: 37.54 | Beam=5
+
+🏆 Last BLEU Score: 37.54
+
+🕒 Total Test Time => fftgate_Transformer: 0 min 48.37 sec
+
+🕒 Total Training Time => fftgate_Transformer: 77 min 0.18 sec

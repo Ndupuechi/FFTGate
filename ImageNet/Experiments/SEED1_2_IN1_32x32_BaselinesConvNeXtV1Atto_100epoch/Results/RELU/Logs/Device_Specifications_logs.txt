@@ -1,0 +1,9 @@
+💻 Total system RAM: 31.66 GB
+🧠 Logical CPU cores: 32
+🖥️  Detected GPU devices: 1
+✅ GPU Detected: NVIDIA GeForce RTX 4080 SUPER
+✅ Total VRAM: 16375 MB
+✅ Estimated safe batch size for input 64x64: 11993
+🖥️  GPU: NVIDIA GeForce RTX 4080 SUPER (17.17 GB)
+🔧 PyTorch: 2.2.0+cu121 | CUDA: 12.1 | cuDNN: 8801
+🐍 Python: 3.10.16 | OS: Windows 10

@@ -1,0 +1,14 @@
+Checkpoint epoch_41_tanhexp_Transformer_IWSLT13_En_Fr_Seed1_1_EXP3.pt | Test Loss: 2.806 | sacreBLEU: 35.90 | Beam=5
+Checkpoint epoch_42_tanhexp_Transformer_IWSLT13_En_Fr_Seed1_1_EXP3.pt | Test Loss: 2.810 | sacreBLEU: 35.36 | Beam=5
+Checkpoint epoch_43_tanhexp_Transformer_IWSLT13_En_Fr_Seed1_1_EXP3.pt | Test Loss: 2.798 | sacreBLEU: 35.90 | Beam=5
+Checkpoint epoch_44_tanhexp_Transformer_IWSLT13_En_Fr_Seed1_1_EXP3.pt | Test Loss: 2.793 | sacreBLEU: 36.01 | Beam=5
+Checkpoint epoch_45_tanhexp_Transformer_IWSLT13_En_Fr_Seed1_1_EXP3.pt | Test Loss: 2.798 | sacreBLEU: 35.82 | Beam=5
+Checkpoint epoch_46_tanhexp_Transformer_IWSLT13_En_Fr_Seed1_1_EXP3.pt | Test Loss: 2.790 | sacreBLEU: 35.68 | Beam=5
+Checkpoint epoch_47_tanhexp_Transformer_IWSLT13_En_Fr_Seed1_1_EXP3.pt | Test Loss: 2.784 | sacreBLEU: 36.02 | Beam=5
+Checkpoint epoch_48_tanhexp_Transformer_IWSLT13_En_Fr_Seed1_1_EXP3.pt | Test Loss: 2.802 | sacreBLEU: 35.31 | Beam=5
+Checkpoint epoch_49_tanhexp_Transformer_IWSLT13_En_Fr_Seed1_1_EXP3.pt | Test Loss: 2.775 | sacreBLEU: 36.35 | Beam=5
+Checkpoint tanhexp_Transformer_IWSLT13_En_Fr_LR0_0001_Adam_Seed1_1_EXP3_LastEpoch49.pt | Test Loss: 2.775 | sacreBLEU: 36.35 | Beam=5
+
+🏆 Best BLEU Score: 36.35
+
+🕒 Total Test Time over all checkpoints: 9 min 4.56 sec

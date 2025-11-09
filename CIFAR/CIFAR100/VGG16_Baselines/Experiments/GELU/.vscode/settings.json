@@ -1,0 +1,7 @@
+{
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportMissingImports": "none"
+    },
+    "python-envs.pythonProjects": [],
+    "terminal.integrated.scrollback": 5000
+}
