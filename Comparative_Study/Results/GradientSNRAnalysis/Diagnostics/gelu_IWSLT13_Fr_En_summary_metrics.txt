@@ -1,0 +1,9 @@
+# Diagnostic Summary — GELU
+# Checkpoint: epoch_48_gelu_Transformer_IWSLT13_Fr_En_Seed1_1_EXP3.pt
+
+Gradient_SNR_Amplitude:	0.93155778
+Gradient_SNR_Amplitude_Log:	-0.03079020
+Gradient_SNR_Power:	0.79036159
+Gradient_SNR_Power_Log:	-0.10217417
+Logit_Smoothness_Rf:	0.25210817
+Grad_Smoothness_Rf:	0.24484660

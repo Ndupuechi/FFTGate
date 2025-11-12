@@ -1,0 +1,9 @@
+# Diagnostic Summary — GEGLU
+# Checkpoint: epoch_48_geglu_Transformer_IWSLT13_Fr_En_Seed1_1_EXP3.pt
+
+Gradient_SNR_Amplitude:	0.85065295
+Gradient_SNR_Amplitude_Log:	-0.07024758
+Gradient_SNR_Power:	0.72155698
+Gradient_SNR_Power_Log:	-0.14172936
+Logit_Smoothness_Rf:	0.25235206
+Grad_Smoothness_Rf:	0.24564416

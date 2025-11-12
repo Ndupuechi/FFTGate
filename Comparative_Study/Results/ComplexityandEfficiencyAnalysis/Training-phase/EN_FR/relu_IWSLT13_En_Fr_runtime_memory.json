@@ -1,0 +1,17 @@
+{
+    "activation": "relu",
+    "dataset": "IWSLT13_En_Fr",
+    "epochs": 1,
+    "lr": 0.0001,
+    "weight_decay": 0.0001,
+    "eps": 1e-09,
+    "label_smoothing": 0.1,
+    "warmup_updates": 4000,
+    "max_tokens_per_batch": 4096,
+    "max_source_positions": 256,
+    "max_target_positions": 256,
+    "train_time_sec": 58.51,
+    "train_time_per_epoch_sec": 58.51,
+    "peak_vram_MB": 2622.52,
+    "throughput_tokens_per_sec": 10669283.89
+}

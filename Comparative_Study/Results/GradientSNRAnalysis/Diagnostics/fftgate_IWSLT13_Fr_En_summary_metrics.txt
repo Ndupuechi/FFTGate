@@ -1,0 +1,9 @@
+# Diagnostic Summary — FFTGATE
+# Checkpoint: epoch_49_fftgate_Transformer_IWSLT13_Fr_En_Seed1_1_EXP3.pt
+
+Gradient_SNR_Amplitude:	0.98988107
+Gradient_SNR_Amplitude_Log:	-0.00441697
+Gradient_SNR_Power:	0.81643609
+Gradient_SNR_Power_Log:	-0.08807780
+Logit_Smoothness_Rf:	0.25194869
+Grad_Smoothness_Rf:	0.24466203

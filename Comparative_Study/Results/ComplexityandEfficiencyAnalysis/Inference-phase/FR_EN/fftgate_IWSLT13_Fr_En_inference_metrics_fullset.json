@@ -1,0 +1,17 @@
+{
+    "activation": "fftgate",
+    "checkpoint": "epoch_49_fftgate_Transformer_IWSLT13_Fr_En_Seed1_1_EXP3.pt",
+    "dataset": "IWSLT13_Fr_En",
+    "mode": "inference",
+    "beam": 5,
+    "max_len_a": 1.2,
+    "max_len_b": 10,
+    "lenpen": 1.0,
+    "latency_ms_per_batch": 27.24,
+    "latency_ms_per_sentence": 0.24,
+    "throughput_Mtokens_per_sec": 0.10099,
+    "peak_vram_MB": 1305.34,
+    "batches_measured": 69,
+    "sentences_measured": 7677,
+    "approx_sentences_per_batch": 111.26
+}

@@ -1,0 +1,17 @@
+{
+    "activation": "geglu",
+    "checkpoint": "epoch_46_geglu_Transformer_IWSLT13_En_Fr_Seed1_1_EXP3.pt",
+    "dataset": "IWSLT13_En_Fr",
+    "mode": "inference",
+    "beam": 5,
+    "max_len_a": 1.2,
+    "max_len_b": 10,
+    "lenpen": 1.0,
+    "latency_ms_per_batch": 44.74,
+    "latency_ms_per_sentence": 0.45,
+    "throughput_Mtokens_per_sec": 0.05256,
+    "peak_vram_MB": 2131.78,
+    "batches_measured": 79,
+    "sentences_measured": 7840,
+    "approx_sentences_per_batch": 99.24
+}

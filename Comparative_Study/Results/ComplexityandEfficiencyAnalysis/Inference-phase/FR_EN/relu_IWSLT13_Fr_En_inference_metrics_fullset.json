@@ -1,0 +1,17 @@
+{
+    "activation": "relu",
+    "checkpoint": "epoch_48_relu_Transformer_IWSLT13_Fr_En_Seed1_1_EXP3.pt",
+    "dataset": "IWSLT13_Fr_En",
+    "mode": "inference",
+    "beam": 5,
+    "max_len_a": 1.2,
+    "max_len_b": 10,
+    "lenpen": 1.0,
+    "latency_ms_per_batch": 20.39,
+    "latency_ms_per_sentence": 0.18,
+    "throughput_Mtokens_per_sec": 0.13143,
+    "peak_vram_MB": 1272.26,
+    "batches_measured": 69,
+    "sentences_measured": 7677,
+    "approx_sentences_per_batch": 111.26
+}
